@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>لوحة إدارة المتجر</title>
+<style>
+:root{--teal:#22a39e;--teal-d:#1b8782;--ink:#1a1a1a;--mut:#5f6368;--line:#e6e9e9;--bg:#f6f8f8;--red:#c5382c}
+*{box-sizing:border-box;margin:0}
+body{font-family:"Segoe UI",Tahoma,sans-serif;background:var(--bg);color:var(--ink);line-height:1.7;-webkit-text-size-adjust:100%}
+.top{background:var(--ink);color:#fff;position:sticky;top:0;z-index:10}
+.top .in{max-width:1000px;margin:auto;padding:.7rem 1rem;display:flex;align-items:center;gap:.8rem}
+.top b{flex:1}.top a{color:#c9d2d2;text-decoration:none;font-size:.9rem}
+.w{max-width:1000px;margin:auto;padding:1rem}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:1rem;margin-bottom:1rem}
+h1{font-size:1.3rem}h3{font-size:1.05rem;margin-bottom:.5rem}
+button,.btn{font:inherit;font-weight:600;border:0;border-radius:10px;padding:.5rem 1rem;cursor:pointer;min-height:42px;background:var(--ink);color:#fff;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.g{background:var(--teal)}.g:hover{background:var(--teal-d)}.s{background:#fff;color:var(--ink);border:1px solid var(--line)}.r{background:#fdecea;color:var(--red)}.sm{min-height:36px;padding:.2rem .8rem;font-size:.88rem}
+input,textarea,select{width:100%;padding:.6rem;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:16px;background:#fff}
+input:focus,textarea:focus,select:focus{border-color:var(--teal);outline:0}
+label{display:block;margin:.8rem 0 .25rem;font-weight:600;font-size:.92rem}
+.hd{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem}.hd h1{flex:1}
+.mt{color:var(--mut);font-size:.85rem}
+.msg{padding:.7rem 1rem;border-radius:10px;margin-bottom:1rem}.ok{background:#e7f6ec;border:1px solid #b9e3c6}.er{background:#fde8e6;border:1px solid #f3b8b2}
+.items{display:grid;gap:.8rem;grid-template-columns:1fr 1fr}
+.it{display:grid;grid-template-columns:64px 1fr;gap:.2rem .8rem;align-items:center}
+.ph{width:64px;height:64px;border-radius:12px;object-fit:cover;background:hsl(var(--h) 70% 92%);display:grid;place-items:center;font-weight:700;font-size:1.3rem;color:hsl(var(--h) 50% 30%)}
+.pill{font-size:.75rem;padding:.05rem .6rem;border-radius:99px;font-weight:600}.pill.v{background:#e2f5e9;color:#0d7a3a}.pill.h{background:#eee;color:#666}
+.act{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem;grid-column:1/-1}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:0 1rem}
+.chk{display:flex;gap:.5rem;flex-wrap:wrap}.chk label{display:flex;align-items:center;gap:.4rem;font-weight:400;margin:0;background:var(--bg);padding:.5rem .8rem;border-radius:10px}.chk input{width:auto}
+.pv{max-width:100%;max-height:160px;border-radius:10px;border:1px solid var(--line);margin:.4rem 0;display:block}
+.savebar{position:sticky;bottom:.5rem;background:#fffffff2;border:1px solid var(--line);border-radius:14px;padding:.7rem;display:flex;gap:.6rem;box-shadow:0 -4px 16px rgba(0,0,0,.07)}.savebar .g{flex:1}
+.lg{max-width:520px;margin:6vh auto 0}ol{padding-inline-start:1.3rem;margin:.5rem 0}ol li{margin:.3rem 0}
+code{background:var(--bg);padding:0 .3rem;border-radius:4px;direction:ltr;unicode-bidi:embed}
+@media(max-width:700px){.items{grid-template-columns:1fr}.row2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="top"><div class="in"><b>لوحة إدارة المتجر</b><a href="./" target="_blank">المتجر</a><a href="#" id="logout" hidden>خروج</a></div></div>
+<div class="w" id="app"></div>
+
+<script>
+const REPO="hassan4ever92/software-store",BRANCH="main",FILE="products.json";
+const CATS={archive:"الأرشفة والمخاطبات",hr:"الموارد البشرية",health:"الأنظمة الصحية",sales:"المبيعات والمخازن"};
+const AUD={gov:"جهة حكومية",health:"مستشفى أو عيادة",biz:"شركة أو متجر"};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let token="",products=[],sha="",editing=null,flash=null;
+try{token=localStorage.getItem("gh_token")||""}catch(e){}
+
+const api=async(path,opt={})=>{
+  const r=await fetch("https://api.github.com/repos/"+REPO+path,{...opt,headers:{Accept:"application/vnd.github+json",Authorization:"Bearer "+token,"Content-Type":"application/json",...(opt.headers||{})}});
+  if(!r.ok){let m="";try{m=(await r.json()).message}catch(e){}throw new Error(r.status+" "+m)}
+  return r.json();
+};
+const b64=s=>{const b=new TextEncoder().encode(s);let x="";b.forEach(c=>x+=String.fromCharCode(c));return btoa(x)};
+const unb64=s=>new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g,"")),c=>c.charCodeAt(0)));
+
+async function load(){
+  const j=await api("/contents/"+FILE+"?ref="+BRANCH);
+  sha=j.sha;products=JSON.parse(unb64(j.content));
+}
+async function save(msg){
+  const body={message:msg,content:b64(JSON.stringify(products,null,2)+"\n"),sha,branch:BRANCH};
+  const j=await api("/contents/"+FILE,{method:"PUT",body:JSON.stringify(body)});
+  sha=j.content.sha;
+}
+async function uploadShot(file){
+  const ext=(file.name.split(".").pop()||"png").toLowerCase();
+  if(!["png","jpg","jpeg","webp"].includes(ext))throw new Error("نوع الصورة غير مسموح");
+  if(file.size>3_000_000)throw new Error("الصورة أكبر من 3 ميغابايت");
+  const data=await new Promise((ok,no)=>{const f=new FileReader();f.onload=()=>ok(String(f.result).split(",")[1]);f.onerror=no;f.readAsDataURL(file)});
+  const name=Date.now().toString(36)+Math.random().toString(36).slice(2,6)+"."+ext;
+  await api("/contents/uploads/shots/"+name,{method:"PUT",body:JSON.stringify({message:"Add screenshot",content:data,branch:BRANCH})});
+  return "uploads/shots/"+name;
+}
+
+function loginView(err){
+  $("#logout").hidden=true;
+  $("#app").innerHTML=`<div class="card lg"><h1>تسجيل الدخول</h1>
+  <p class="mt" style="margin:.5rem 0">اللوحة تعدّل ملفات المتجر في GitHub مباشرة، فتحتاج مفتاح وصول (Token) خاصاً بك. يُحفظ في متصفحك فقط ولا يُرسل لأي جهة غير GitHub.</p>
+  ${err?`<p class="msg er">${esc(err)}</p>`:""}
+  <details style="margin:.6rem 0"><summary><b>كيف أحصل على المفتاح؟</b></summary><ol>
+   <li>افتح <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">صفحة إنشاء مفتاح جديد</a>.</li>
+   <li>اكتب أي اسم، وحدّد مدة الصلاحية (مثلاً 90 يوماً).</li>
+   <li>في Repository access اختر <b>Only select repositories</b> ثم <code>software-store</code>.</li>
+   <li>في Permissions ← Repository permissions اجعل <b>Contents</b> = <b>Read and write</b>.</li>
+   <li>اضغط Generate token وانسخ المفتاح والصقه هنا.</li></ol></details>
+  <label>المفتاح (Token)</label><input id="tk" type="password" dir="ltr" autocomplete="off" placeholder="github_pat_...">
+  <p style="margin-top:1rem"><button class="g" id="go" style="width:100%">دخول</button></p></div>`;
+  $("#go").onclick=async()=>{token=$("#tk").value.trim();if(!token)return;$("#go").disabled=true;
+    try{await load();try{localStorage.setItem("gh_token",token)}catch(e){}listView()}catch(e){token="";loginView("تعذّر الدخول: "+e.message+" — تأكد من المفتاح وصلاحية Contents")}};
+}
+
+function listView(){
+  $("#logout").hidden=false;
+  const f=flash;flash=null;
+  $("#app").innerHTML=`<div class="hd"><h1>الأنظمة (${products.length})</h1><button class="g sm" data-new>+ إضافة نظام</button></div>
+  ${f?`<p class="msg ${f.err?'er':'ok'}">${esc(f.t)}</p>`:""}
+  <div class="items">${products.map((p,i)=>`<div class="card"><div class="it">${p.shot?`<img class="ph" src="${esc(p.shot)}" alt="">`:`<div class="ph" style="--h:${+p.hue}">${esc((p.name||"?").replace("نظام ","").charAt(0))}</div>`}
+   <div><b>${esc(p.name)}</b><div class="mt">${(+p.price).toLocaleString("en")} $ · ${esc(CATS[p.cat]||"بدون تصنيف")}</div><span class="pill ${p.active===0?'h':'v'}">${p.active===0?'مخفي':'ظاهر'}</span></div>
+   <div class="act"><button class="s sm" data-edit="${i}">تعديل</button><button class="s sm" data-tog="${i}">${p.active===0?'إظهار':'إخفاء'}</button>
+   <button class="s sm" data-up="${i}" ${i==0?'disabled':''}>↑</button><button class="s sm" data-dn="${i}" ${i==products.length-1?'disabled':''}>↓</button>
+   <button class="r sm" data-del="${i}">حذف</button></div></div></div>`).join("")}</div>
+  <p class="mt">التغييرات تُحفظ في GitHub وتظهر في المتجر خلال دقيقة إلى بضع دقائق. ترتيب القائمة هنا هو ترتيب الظهور في المتجر.</p>`;
+}
+
+function formView(p,isNew){
+  editing={p:JSON.parse(JSON.stringify(p)),isNew};
+  const sel=p.aud||[];
+  $("#app").innerHTML=`<div class="hd"><h1>${isNew?"إضافة نظام":"تعديل نظام"}</h1><button class="s sm" id="back">رجوع</button></div>
+  <div class="card"><h3>المعلومات الأساسية</h3>
+   <label>اسم النظام</label><input id="f_name" value="${esc(p.name)}">
+   <label>جملة بسيطة تشرح ما يحله النظام (تظهر في البطاقة)</label><input id="f_solves" value="${esc(p.solves)}">
+   <label>وصف النظام</label><textarea id="f_desc" rows="3">${esc(p.desc)}</textarea>
+   <div class="row2"><div><label>السعر الأساسي ($)</label><input id="f_price" type="number" min="0" step="any" inputmode="decimal" value="${+p.price||0}"></div>
+   <div><label>التصنيف</label><select id="f_cat"><option value="">— بدون تصنيف —</option>${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${p.cat===k?'selected':''}>${esc(v)}</option>`).join("")}</select></div></div>
+   <label>الفئات المستهدفة</label><div class="chk">${Object.entries(AUD).map(([k,v])=>`<label><input type="checkbox" name="aud" value="${k}" ${sel.includes(k)?'checked':''}> ${esc(v)}</label>`).join("")}</div></div>
+  <div class="card"><h3>المزايا والمواصفات</h3>
+   <label>المزايا (كل ميزة في سطر)</label><textarea id="f_feat" rows="5">${esc((p.features||[]).join("\n"))}</textarea>
+   <label>المواصفات الفنية (كل سطر: الاسم: القيمة)</label><textarea id="f_specs" rows="5">${esc((p.specs||[]).map(x=>x[0]+": "+x[1]).join("\n"))}</textarea></div>
+  <div class="card"><h3>الصورة والمعاينة</h3>
+   <label>لقطة شاشة للنظام (png / jpg / webp، حتى 3 ميغابايت)</label>
+   ${p.shot?`<img class="pv" src="${esc(p.shot)}" alt=""><label style="font-weight:400;display:flex;gap:.4rem;align-items:center"><input type="checkbox" id="f_rm" style="width:auto"> حذف الصورة الحالية</label>`:""}
+   <input type="file" id="f_shot" accept="image/png,image/jpeg,image/webp">
+   <label>رابط المعاينة التجريبية (اختياري)</label><input id="f_demo" dir="ltr" value="${esc(p.demo)}" placeholder="https://...">
+   <label>لون الرسم التوضيحي (عند عدم وجود صورة)</label><input id="f_hue" type="range" min="0" max="360" value="${+p.hue||215}" style="padding:0"></div>
+  <div class="card"><label class="chk" style="margin:0;display:flex;font-weight:400"><span style="display:flex;gap:.5rem;align-items:center"><input type="checkbox" id="f_act" style="width:auto" ${p.active===0?'':'checked'}> ظاهر في المتجر</span></label></div>
+  <div class="savebar"><button class="g" id="save">حفظ</button><button class="s" id="cancel">إلغاء</button></div>`;
+  $("#back").onclick=$("#cancel").onclick=listView;
+  $("#save").onclick=onSave;
+}
+async function onSave(){
+  const b=$("#save");b.disabled=true;b.textContent="جارٍ الحفظ...";
+  try{
+    const e=editing.p;
+    const name=$("#f_name").value.trim();if(!name)throw new Error("اسم النظام مطلوب");
+    let shot=e.shot||"";
+    if($("#f_rm")&&$("#f_rm").checked)shot="";
+    const file=$("#f_shot").files[0];if(file)shot=await uploadShot(file);
+    const np={...e,name,solves:$("#f_solves").value.trim(),desc:$("#f_desc").value.trim(),price:Math.max(0,+$("#f_price").value||0),cat:$("#f_cat").value,
+      aud:[...document.querySelectorAll('input[name=aud]:checked')].map(x=>x.value),
+      features:$("#f_feat").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),
+      specs:$("#f_specs").value.split(/\r?\n/).filter(l=>l.includes(":")).map(l=>{const i=l.indexOf(":");return [l.slice(0,i).trim(),l.slice(i+1).trim()]}),
+      hue:+$("#f_hue").value,demo:$("#f_demo").value.trim(),shot,active:$("#f_act").checked?1:0};
+    if(editing.isNew){np.id=products.reduce((m,x)=>Math.max(m,+x.id||0),0)+1;products.push(np)}
+    else products[products.findIndex(x=>x.id===e.id)]=np;
+    await save((editing.isNew?"Add system: ":"Update system: ")+name);
+    flash={t:"تم الحفظ. سيظهر التغيير في المتجر خلال دقيقة تقريباً."};listView();
+  }catch(err){
+    await load().catch(()=>{});
+    b.disabled=false;b.textContent="حفظ";alert("تعذّر الحفظ: "+err.message);
+  }
+}
+async function mutate(fn,msg){
+  try{await load();fn();await save(msg);flash={t:"تم الحفظ. سيظهر التغيير في المتجر خلال دقيقة تقريباً."}}catch(e){flash={t:"تعذّر الحفظ: "+e.message,err:1}}
+  listView();
+}
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-new],[data-edit],[data-tog],[data-up],[data-dn],[data-del]");if(!t)return;const d=t.dataset;
+  if(d.new!==undefined)formView({name:"",solves:"",desc:"",features:[],specs:[],price:0,hue:215,aud:[],cat:"",demo:"",shot:"",active:1},true);
+  else if(d.edit!==undefined)formView(products[+d.edit],false);
+  else if(d.tog!==undefined){const i=+d.tog;mutate(()=>{products[i].active=products[i].active===0?1:0},"Toggle visibility: "+products[i].name)}
+  else if(d.up!==undefined){const i=+d.up;mutate(()=>{[products[i-1],products[i]]=[products[i],products[i-1]]},"Reorder systems")}
+  else if(d.dn!==undefined){const i=+d.dn;mutate(()=>{[products[i+1],products[i]]=[products[i],products[i+1]]},"Reorder systems")}
+  else if(d.del!==undefined){const i=+d.del;if(confirm("حذف النظام «"+products[i].name+"» نهائياً؟"))mutate(()=>{products.splice(i,1)},"Delete system")}
+});
+$("#logout").onclick=e=>{e.preventDefault();try{localStorage.removeItem("gh_token")}catch(x){}token="";loginView()};
+(async()=>{if(!token)return loginView();try{await load();listView()}catch(e){token="";loginView("انتهت صلاحية المفتاح أو لا يملك صلاحية: "+e.message)}})();
+</script>
+</body>
+</html>
